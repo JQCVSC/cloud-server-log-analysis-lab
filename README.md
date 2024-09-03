@@ -206,5 +206,3 @@ Congratulations on completing the Web Server Log Analysis Lab! You've used Pytho
 - Experiment with integrating your Python scripts with other cloud functions and services to build a comprehensive security monitoring system.
 
 ---
-
-This updated README file includes a total of 10 log entries, providing a more comprehensive set of data for the lab challenge. The instructions remain aligned with the setup process for using Python and Google Cloud Functions for log analysis.
