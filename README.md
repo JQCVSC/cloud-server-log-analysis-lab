@@ -1,20 +1,17 @@
 ---
 
-# Cloud Web Server Log Analysis Cybersecurity Lab
+# Cloud Server Log Analysis Cybersecurity Lab
 
 ## Description
 
-In this lab, you will use Python to analyze web server logs stored in Google Cloud Storage. You will learn how to write scripts to identify potential security threats, such as SQL injections and brute force attacks. This hands-on project demonstrates the use of Python for log analysis, Google Cloud Functions for automation, and Google Cloud Storage for data management. It's ideal for security analysts and students interested in learning how to use Python for cybersecurity log analysis in a cloud environment.
+In this lab, you will learn how to analyze web server logs on a Google Cloud Platform (GCP) virtual machine using the Google Cloud SDK Shell from your local Windows computer. You will gain hands-on experience in setting up a cloud environment, accessing server logs remotely, and using both Windows and Linux commands to identify potential security threats such as SQL injections and brute force attacks. This lab is designed for cybersecurity students and beginners interested in learning practical log analysis techniques in a cloud environment.
 
 ## Table of Contents
 
 - [Introduction](#introduction)
+- [Prerequisites](#prerequisites)
 - [Setup Instructions](#setup-instructions)
-- [Step 1: Creating Sample Logs](#step-1-creating-sample-logs)
-- [Step 2: Setting Up Google Cloud Environment](#step-2-setting-up-google-cloud-environment)
-- [Step 3: Writing the Python Log Analyzer Script](#step-3-writing-the-python-log-analyzer-script)
-- [Step 4: Deploying the Script as a Cloud Function](#step-4-deploying-the-script-as-a-cloud-function)
-- [Step 5: Testing Your Cloud Function](#step-5-testing-your-cloud-function)
+- [Lab Steps](#lab-steps)
 - [Lab Challenge](#lab-challenge)
 - [Conclusion](#conclusion)
 - [Next Steps](#next-steps)
@@ -23,19 +20,81 @@ In this lab, you will use Python to analyze web server logs stored in Google Clo
 
 ## Introduction
 
-Welcome to the Web Server Log Analysis Lab! In this lab, you will simulate a real-world scenario where you are a security analyst tasked with identifying potential security threats in web server logs. You will use Python to parse and analyze these logs and Google Cloud Functions to automate the process. This lab provides hands-on experience with using Python for cybersecurity tasks and demonstrates how to leverage cloud technologies to enhance your workflow.
+Welcome to the Cloud Server Log Analysis Lab! In this lab, you will simulate a real-world scenario where you are a security analyst tasked with identifying potential security threats in web server logs. You will use the Google Cloud SDK Shell on your local Windows machine to connect to a Google Cloud Platform virtual machine and analyze these logs. This lab provides hands-on experience with cloud technologies and basic log analysis techniques.
+
+---
+
+## Prerequisites
+
+- A Windows computer with internet access
+- Google Cloud Platform account (free tier is sufficient)
+- Basic familiarity with command-line interfaces
 
 ---
 
 ## Setup Instructions
 
-### Step 1: Creating Sample Logs
+1. **Create a Google Cloud Platform (GCP) Account:**
 
-1. **Create a Sample Log File:**
+   If you haven't already, create a free account on Google Cloud Platform to access free credits for new users.
 
-   Start by creating a sample log file (`web_server.log`) with some suspicious entries to analyze. Here’s an example of what the log entries might look like:
+2. **Install Google Cloud SDK:**
 
-   ```plaintext
+   - Download and install the Google Cloud SDK for Windows from: https://cloud.google.com/sdk/docs/install
+   - Follow the installation prompts, and ensure you select the option to install the Google Cloud CLI.
+
+3. **Create a New Project:**
+
+   - Open the Google Cloud Console in your web browser.
+   - Create a new project for this lab.
+
+4. **Enable Compute Engine API:**
+
+   - In your new project, enable the Compute Engine API to create virtual machines.
+
+---
+
+## Lab Steps
+
+### Step 1: Creating a Virtual Machine
+
+1. Open the Google Cloud Console in your web browser.
+2. Navigate to Compute Engine > VM instances.
+3. Click "Create Instance".
+4. Configure your instance:
+   - Name: log-analysis-vm
+   - Region: Choose a region close to you
+   - Machine type: e2-micro (2 vCPU, 1 GB memory)
+   - Boot disk: Ubuntu 20.04 LTS
+   - Firewall: Allow HTTP and HTTPS traffic
+5. Click "Create" to launch your VM.
+
+### Step 2: Connecting to Your VM
+
+1. Open the Google Cloud SDK Shell on your Windows computer.
+2. Authenticate with your Google Cloud account:
+   ```
+   gcloud auth login
+   ```
+3. Set your project ID:
+   ```
+   gcloud config set project YOUR_PROJECT_ID
+   ```
+   Replace YOUR_PROJECT_ID with your actual project ID.
+4. Connect to your VM using SSH:
+   ```
+   gcloud compute ssh log-analysis-vm --zone=YOUR_VM_ZONE
+   ```
+   Replace YOUR_VM_ZONE with the zone where your VM is located.
+
+### Step 3: Setting Up the Web Server Log
+
+1. In the SSH session, create a sample log file:
+   ```
+   sudo nano /var/log/apache2/access.log
+   ```
+2. Copy and paste the following log entries:
+   ```
    192.168.1.1 - - [01/Jul/2023:10:00:01 +0000] "GET /login.php HTTP/1.1" 200 1234
    192.168.1.2 - - [01/Jul/2023:10:00:02 +0000] "GET /products.php?id=1 UNION SELECT * FROM users HTTP/1.1" 400 567
    192.168.1.1 - - [01/Jul/2023:10:00:03 +0000] "POST /login.php HTTP/1.1" 401 789
@@ -47,126 +106,51 @@ Welcome to the Web Server Log Analysis Lab! In this lab, you will simulate a rea
    192.168.1.6 - - [01/Jul/2023:10:00:09 +0000] "GET /login.php?username=admin&password=' OR '1'='1'-- HTTP/1.1" 200 1432
    192.168.1.7 - - [01/Jul/2023:10:00:10 +0000] "GET /setup.php?cmd=cat /etc/passwd HTTP/1.1" 400 678
    ```
+3. Save the file (Ctrl+X, then Y, then Enter).
 
-2. **Save the Log File:**
+### Step 4: Basic Log Analysis
 
-   Save this file as `web_server.log` on your local machine.
-
-### Step 2: Setting Up Google Cloud Environment
-
-1. **Create a Google Cloud Platform (GCP) Account:**
-
-   If you haven't already, create a free account on [Google Cloud Platform](https://cloud.google.com/) to access free credits for new users.
-
-2. **Create Google Cloud Storage Buckets:**
-
-   - **Log Storage Bucket:** Create a bucket named `your-log-bucket` for storing log files.
-   - **Report Storage Bucket:** Create another bucket named `your-report-bucket` for storing generated reports.
-
-3. **Upload the Sample Log File:**
-
-   Upload your `web_server.log` file to the `your-log-bucket` bucket in Google Cloud Storage.
-
-### Step 3: Writing the Python Log Analyzer Script
-
-1. **Create Your Python Script:**
-
-   Use the following Python script to parse the log files, detect potential security threats, and generate a report:
-
-   ```python
-   import re
-   from google.cloud import storage
-   from collections import Counter
-   import json
-
-   def download_blob(bucket_name, source_blob_name, destination_file_name):
-       storage_client = storage.Client()
-       bucket = storage_client.bucket(bucket_name)
-       blob = bucket.blob(source_blob_name)
-       blob.download_to_filename(destination_file_name)
-
-   def analyze_logs(data, context):
-       # Download the log file from Cloud Storage
-       bucket_name = "your-log-bucket"
-       source_blob_name = "web_server.log"
-       destination_file_name = "/tmp/web_server.log"
-       download_blob(bucket_name, source_blob_name, destination_file_name)
-
-
-
-       # Patterns to look for
-       sql_injection_pattern = r"(?i)(UNION|SELECT|INSERT|UPDATE|DELETE|DROP|FROM|WHERE)"
-       brute_force_pattern = r"(?i)(login|authenticate|auth).*failed"
-       
-       sql_injection_attempts = []
-       brute_force_attempts = []
-       ip_counts = Counter()
-
-       with open(destination_file_name, 'r') as file:
-           for line in file:
-               # Extract IP address (assuming it's the first element in each log line)
-               ip = line.split()[0]
-               ip_counts[ip] += 1
-
-               # Check for SQL injection attempts
-               if re.search(sql_injection_pattern, line):
-                   sql_injection_attempts.append(line.strip())
-
-               # Check for brute force attempts
-               if re.search(brute_force_pattern, line):
-                   brute_force_attempts.append(line.strip())
-
-       # Generate report
-       report = {
-           "sql_injection_attempts": sql_injection_attempts,
-           "brute_force_attempts": brute_force_attempts,
-           "top_10_ips": ip_counts.most_common(10)
-       }
-
-       # Save report to Cloud Storage
-       storage_client = storage.Client()
-       report_bucket = storage_client.bucket("your-report-bucket")
-       report_blob = report_bucket.blob("security_report.json")
-       report_blob.upload_from_string(json.dumps(report, indent=2))
-
-       print(f"Analysis complete. Report saved to your-report-bucket/security_report.json")
-
-   # For local testing
-   if __name__ == "__main__":
-       analyze_logs(None, None)
+1. View the entire log file:
+   ```
+   sudo cat /var/log/apache2/access.log
+   ```
+2. Count the number of entries in the log:
+   ```
+   sudo wc -l /var/log/apache2/access.log
+   ```
+3. Search for POST requests:
+   ```
+   sudo grep POST /var/log/apache2/access.log
+   ```
+4. Find unique IP addresses:
+   ```
+   sudo awk '{print $1}' /var/log/apache2/access.log | sort | uniq
    ```
 
-2. **Save the Python Script:**
+### Step 5: Identifying SQL Injection Attempts
 
-   Save the script as `log_analyzer.py`.
+1. Search for common SQL injection keywords:
+   ```
+   sudo grep -iE "UNION|SELECT|INSERT|UPDATE|DELETE|DROP|FROM|WHERE" /var/log/apache2/access.log
+   ```
 
-### Step 4: Deploying the Script as a Cloud Function
+### Step 6: Detecting Brute Force Attempts
 
-1. **Create a New Google Cloud Function:**
+1. Look for failed login attempts:
+   ```
+   sudo grep -iE "login|authenticate|auth" /var/log/apache2/access.log | grep "401"
+   ```
 
-   - Go to **Cloud Functions** in the Google Cloud Console.
-   - Click **Create Function**.
-   - Set the runtime to Python 3.9 or higher.
-   - Name the function `analyze_logs`.
-   - Set the trigger type to **Cloud Storage** and select the `your-log-bucket`.
+### Step 7: Analyzing HTTP Status Codes
 
-2. **Upload the Python Script:**
+1. Count occurrences of each HTTP status code:
+   ```
+   sudo awk '{print $9}' /var/log/apache2/access.log | sort | uniq -c | sort -rn
+   ```
 
-   - Copy and paste the contents of `log_analyzer.py` into the inline editor.
+### Step 8: Disconnecting from the VM
 
-3. **Deploy the Function:**
-
-   - Click **Deploy** to deploy your cloud function.
-
-### Step 5: Testing Your Cloud Function
-
-1. **Upload a Log File:**
-
-   Upload a log file to your `your-log-bucket` in Google Cloud Storage to trigger the function.
-
-2. **Check the Generated Report:**
-
-   Once the function has executed, check `your-report-bucket` for a new `security_report.json` file that contains the analysis results.
+1. When you're done with your analysis, type `exit` to close the SSH connection and return to the Google Cloud SDK Shell on your local machine.
 
 ---
 
@@ -174,35 +158,51 @@ Welcome to the Web Server Log Analysis Lab! In this lab, you will simulate a rea
 
 ### Scenario
 
-As a security analyst, you are tasked with identifying suspicious activities in the company's web server logs. Your Python script should be able to detect SQL injection attempts and brute force login attempts, generating a report with the findings.
+You are a security analyst for a small e-commerce company. The company's web server has been experiencing unusual traffic, and you've been asked to investigate the logs for any potential security threats.
 
 ### Tasks
 
-1. Set up the Google Cloud environment as described above.
-2. Implement the Python script to analyze logs for SQL injection and brute force attempts.
-3. Deploy the script as a Cloud Function.
-4. Test the function by uploading sample log files with different patterns of activity.
-5. Verify that the function generates accurate reports in the report bucket.
+1. Analyze the provided log file for:
+   - SQL injection attempts
+   - Brute force login attempts
+   - Unusual HTTP status codes
+   - Attempts to access sensitive files or directories
+2. Identify the IP addresses associated with suspicious activities
+3. Determine the most frequently accessed resources
+4. Create a brief report summarizing your findings and recommendations
+
+### IP Scenarios
+
+- 192.168.1.1: A legitimate user who occasionally misplaces their password
+- 192.168.1.2: A malicious actor attempting SQL injection
+- 192.168.1.3: An employee trying to access restricted areas
+- 192.168.1.4: A bot scanning for common CMS admin pages
+- 192.168.1.5: A user encountering a server error during file upload
+- 192.168.1.6: Another malicious actor attempting SQL injection via login
+- 192.168.1.7: A potential attacker trying to exploit a misconfiguration
 
 ### Skills Practiced
 
-- **Log Analysis:** Parsing and analyzing log files to identify potential security threats.
-- **Pattern Matching:** Using regular expressions to detect suspicious activities.
-- **Cloud Security:** Working with cloud storage and serverless functions.
-- **Automation:** Creating a script that can automatically analyze logs and generate reports.
+- **Remote Server Access:** Using Google Cloud SDK Shell to connect to a cloud-based VM
+- **Log Analysis:** Manually parsing and analyzing log files to identify potential security threats
+- **Linux Commands:** Using basic Linux commands for text processing and analysis
+- **Pattern Recognition:** Identifying suspicious patterns in log entries
+- **Cloud Computing:** Working with virtual machines in a cloud environment
 
 ---
 
 ## Conclusion
 
-Congratulations on completing the Web Server Log Analysis Lab! You've used Python and Google Cloud to analyze web server logs for security threats. This lab provided hands-on experience with real-world cybersecurity tasks and demonstrated the power of cloud technologies in automating security processes.
+Congratulations on completing the Cloud Server Log Analysis Lab! You've gained hands-on experience in analyzing web server logs for security threats using a Google Cloud Platform virtual machine, accessed remotely from your local Windows machine. This lab has provided you with practical skills in log analysis and familiarized you with cloud technologies in a cybersecurity context.
 
 ---
 
 ## Next Steps
 
-- Explore more advanced log analysis techniques, such as using machine learning to detect anomalies.
-- Learn about other cloud services that can enhance your cybersecurity workflows, such as Google Cloud Pub/Sub for real-time log processing.
-- Experiment with integrating your Python scripts with other cloud functions and services to build a comprehensive security monitoring system.
+- Explore more advanced log analysis techniques using tools like awk, sed, and regular expressions
+- Learn about log aggregation and analysis tools such as ELK stack (Elasticsearch, Logstash, Kibana)
+- Investigate automated log analysis solutions and how they can be integrated into cloud environments
+- Study common web application attack patterns and how they manifest in server logs
+- Practice creating custom scripts to automate log analysis tasks
 
 ---
